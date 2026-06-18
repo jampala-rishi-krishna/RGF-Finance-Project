@@ -389,7 +389,6 @@ def verify_batch(batch_df: pd.DataFrame, progress_bar=None) -> list:
             "website":          str(row.get("Website", "") or ""),
             "has_linkedin":     str(row.get("Has LinkedIn", "No") or "No"),
             "linkedin_company": str(row.get("LinkedIn Company", "") or ""),
-            "score_debug":      str(row.get("Score Debug", "") or ""),
             "members_found":    int(row.get("Members Found", 0) or 0),
             "member_details":   str(row.get("Member Details", "None found") or ""),
             "fit_score":        int(row.get("Fit Score", 3) or 3),
