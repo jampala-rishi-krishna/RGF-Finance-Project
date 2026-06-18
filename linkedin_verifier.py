@@ -439,14 +439,11 @@ def verify_linkedin(lenders_df: pd.DataFrame, progress_bar=None) -> pd.DataFrame
             time.sleep(1)
 
         # company_li may include a trailing debug string separated by '|'
-        score_debug = ""
         if company_li:
             if "|" in company_li and company_li.startswith("http"):
-                parts = company_li.split("|", 1)
-                company_li = parts[0]
-                score_debug = parts[1]
+                company_li = company_li.split("|", 1)[0]
         has_linkedin = "Yes" if company_li else "No"
-        _log(f"  LinkedIn: {has_linkedin} | {company_li} | debug={score_debug}")
+        _log(f"  LinkedIn: {has_linkedin} | {company_li}")
 
         # ── Step 4: find employees ─────────────────────────────────────────
         employees = []
@@ -484,7 +481,6 @@ def verify_linkedin(lenders_df: pd.DataFrame, progress_bar=None) -> pd.DataFrame
             "Website":          str(row.get("website", "") or ""),
             "Has LinkedIn":     has_linkedin,
             "LinkedIn Company": company_li,
-            "Score Debug":      score_debug,
             "Members Found":    len(employees),
             "Member Details":   members_str,
             "Fit Score":        row.get("fit_score", 3),
