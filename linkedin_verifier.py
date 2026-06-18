@@ -125,7 +125,7 @@ def _lookup_known(company_name: str) -> str:
 
 # ── SerpApi — Real Google Results ─────────────────────────────────────────
 
-def _serpapi_company(company_name: str) -> str:
+def _serpapi_company(company_name: str, website: str = "") -> str:
     """Search Google via SerpApi for LinkedIn company page."""
     try:
         resp = requests.get(
@@ -147,16 +147,111 @@ def _serpapi_company(company_name: str) -> str:
             _log(f"  SerpApi error: {data['error']}")
             return ""
 
+        import difflib
+        from urllib.parse import urlparse
+
+        best_link = ""
+        best_score = 0
+
+        # derive domain from website if provided
+        site_domain = ""
+        if website:
+            try:
+                site_domain = urlparse(website).netloc.lower().lstrip("www.")
+            except Exception:
+                site_domain = ""
+
+        def _slug_tokens(link_url: str):
+            try:
+                parts = urlparse(link_url).path.split("/")
+                # take last non-empty part
+                for p in reversed(parts):
+                    if p:
+                        slug = p.lower()
+                        return re.sub(r"[^a-z0-9]+", " ", slug).split()
+            except Exception:
+                pass
+            return []
+
+        name_tokens = re.sub(r"[^a-z0-9]+", " ", company_name.lower()).split()
+
         for result in data.get("organic_results", []):
             link = result.get("link", "")
-            if "linkedin.com/company/" in link:
-                match = re.search(
-                    r"(https?://(?:www\.)?linkedin\.com/company/[^/?#&\s]+)",
-                    link
-                )
-                if match:
-                    _log(f"  SerpApi company found: {match.group(1)}")
-                    return match.group(1)
+            title = result.get("title", "") or ""
+            snippet = result.get("snippet", "") or ""
+            if "linkedin.com/company/" not in link:
+                continue
+
+            match = re.search(r"(https?://(?:www\.)?linkedin\.com/company/[^/?#&\s]+)", link)
+            if not match:
+                continue
+
+            candidate = match.group(1)
+            combined = f"{title} {snippet}".lower()
+
+            # scoring components
+            country_boost = 50 if any(k in combined for k in ["philippin", "manila", "philippines"]) else 0
+            domain_boost = 0
+            slug_boost = 0
+            try:
+                ratio = difflib.SequenceMatcher(None, company_name.lower(), title.lower()).ratio()
+            except Exception:
+                ratio = 0.0
+
+            # slug token match
+            slug_tokens = _slug_tokens(candidate)
+            shared = sum(1 for t in name_tokens if t in slug_tokens)
+            if shared > 0:
+                slug_boost = 30 if shared >= 1 else 10
+
+            # domain match in result text (title/snippet/link)
+            domain_text = (link + " " + title + " " + snippet).lower()
+            domain_match = False
+            if site_domain:
+                if site_domain in domain_text:
+                    domain_match = True
+                    domain_boost = 40
+                else:
+                    # attempt to fetch candidate LinkedIn page and look for the website/domain
+                    try:
+                        r = requests.get(candidate, headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
+                        if site_domain in (r.text or "").lower():
+                            domain_match = True
+                            domain_boost = 50
+                    except Exception:
+                        pass
+
+            name_score = int(ratio * 30)
+
+            score = 1 + country_boost + domain_boost + slug_boost + name_score
+
+            # build debug string
+            debug = f"country={country_boost}|domain={domain_boost}|slug={slug_boost}|name={name_score}|total={score}"
+
+            # acceptance rules
+            # - If domain matched, accept candidate if score reasonably high
+            # - If no domain match, require name similarity >= 0.45 to accept even if country match exists
+            accept = False
+            if domain_match and score >= 30:
+                accept = True
+            elif not domain_match:
+                if ratio >= 0.45 and score >= 20:
+                    accept = True
+
+            # prefer higher score
+            if score > best_score:
+                best_score = score
+                best_link = candidate
+                best_debug = debug
+
+            if accept:
+                _log(f"  SerpApi company found: {candidate} | {debug}")
+                # attach debug to the returned value via a tuple-style string
+                return candidate + "|" + debug
+
+        if best_link:
+            _log(f"  SerpApi company best candidate: {best_link} | {best_debug}")
+            return best_link + "|" + best_debug
 
     except Exception as e:
         _log(f"  SerpApi company search error: {e}")
@@ -216,7 +311,6 @@ def _serpapi_employees(company_name: str) -> list:
                 seen_urls.add(profile_url)
 
                 # Parse name and position from Google title
-                # Format: "Name - Position at Company | LinkedIn"
                 name     = ""
                 position = ""
 
@@ -234,14 +328,25 @@ def _serpapi_employees(company_name: str) -> list:
                 name     = re.sub(r"\s*\|\s*LinkedIn.*$", "", name).strip()
                 position = re.sub(r"\s*\|\s*LinkedIn.*$", "", position).strip()
 
+                combined = f"{title} {snippet}".lower()
+
+                # keep PH and general candidates separately
                 if name and 2 < len(name) < 60:
-                    people.append({
+                    candidate = {
                         "name":        name,
                         "position":    position,
                         "profile_url": profile_url,
                         "snippet":     snippet[:100],
-                    })
-                    _log(f"  Employee: {name} | {position}")
+                    }
+                    # classify as PH candidate if mentions Philippines/Manila
+                    if any(k in combined for k in ["philippin", "manila", "philippines"]):
+                        people.append(candidate)
+                        _log(f"  Employee (PH): {name} | {position}")
+                    else:
+                        # store in a temp list for fallback
+                        if len(people) < 8:
+                            people.append(candidate)
+                            _log(f"  Employee (fallback): {name} | {position}")
 
         except Exception as e:
             _log(f"  SerpApi employee search error: {e}")
@@ -284,6 +389,7 @@ def verify_batch(batch_df: pd.DataFrame, progress_bar=None) -> list:
             "website":          str(row.get("Website", "") or ""),
             "has_linkedin":     str(row.get("Has LinkedIn", "No") or "No"),
             "linkedin_company": str(row.get("LinkedIn Company", "") or ""),
+            "score_debug":      str(row.get("Score Debug", "") or ""),
             "members_found":    int(row.get("Members Found", 0) or 0),
             "member_details":   str(row.get("Member Details", "None found") or ""),
             "fit_score":        int(row.get("Fit Score", 3) or 3),
@@ -329,11 +435,19 @@ def verify_linkedin(lenders_df: pd.DataFrame, progress_bar=None) -> pd.DataFrame
         # ── Step 3: SerpApi Google search (uses API credits) ───────────────
         if not company_li:
             _log(f"  Searching via SerpApi...")
-            company_li = _serpapi_company(company_name)
+            website = str(row.get("website", "") or "")
+            company_li = _serpapi_company(company_name, website)
             time.sleep(1)
 
+        # company_li may include a trailing debug string separated by '|'
+        score_debug = ""
+        if company_li:
+            if "|" in company_li and company_li.startswith("http"):
+                parts = company_li.split("|", 1)
+                company_li = parts[0]
+                score_debug = parts[1]
         has_linkedin = "Yes" if company_li else "No"
-        _log(f"  LinkedIn: {has_linkedin} | {company_li}")
+        _log(f"  LinkedIn: {has_linkedin} | {company_li} | debug={score_debug}")
 
         # ── Step 4: find employees ─────────────────────────────────────────
         employees = []
@@ -371,6 +485,7 @@ def verify_linkedin(lenders_df: pd.DataFrame, progress_bar=None) -> pd.DataFrame
             "Website":          str(row.get("website", "") or ""),
             "Has LinkedIn":     has_linkedin,
             "LinkedIn Company": company_li,
+            "Score Debug":      score_debug,
             "Members Found":    len(employees),
             "Member Details":   members_str,
             "Fit Score":        row.get("fit_score", 3),
