@@ -46,6 +46,9 @@ def _linkedin_html_table(df: pd.DataFrame) -> str:
         li_html = (f'<a href="{li}" target="_blank" style="color:#86000B;text-decoration:none;">View Page</a>'
                    if li else "—")
 
+        src = str(row.get("Source", "") or "")
+        src_html = f'<span style="font-size:0.75rem;color:#6B7068">{src}</span>' if src else "—"
+
         has = str(row.get("Has LinkedIn", "No"))
         has_color = "#1B6337" if has == "Yes" else "#6B7068"
 
@@ -53,6 +56,7 @@ def _linkedin_html_table(df: pd.DataFrame) -> str:
         <tr style="background:{bg};">
           <td style="{TD}font-weight:600;">{row.get("Lender Name","")}</td>
           <td style="{TD}">{web_html}</td>
+          <td style="{TD}">{src_html}</td>
           <td style="{TD}color:{has_color};font-weight:700;">{has}</td>
           <td style="{TD}">{li_html}</td>
           <td style="{TD}">{_parse_members(str(row.get("Member Details","") or ""))}</td>
@@ -69,6 +73,7 @@ def _linkedin_html_table(df: pd.DataFrame) -> str:
           <th style="{TH}">Lender Name</th>
           <th style="{TH}">Website</th>
           <th style="{TH}">LinkedIn</th>
+          <th style="{TH}">Source</th>
           <th style="{TH}">Company Page</th>
           <th style="{TH}">Members / Profiles</th>
           <th style="{TH}text-align:center;">#</th>
@@ -406,6 +411,7 @@ if st.session_state.page == "Lender Database":
                 "member_details":   "Member Details",
                 "fit_score":        "Fit Score",
                 "lender_type":      "Type",
+                "source":           "Source",
                 "verified_at":      "Verified At",
             })
 

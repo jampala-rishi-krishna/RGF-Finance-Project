@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS linkedin_results (
     member_details   TEXT DEFAULT '',
     fit_score        INTEGER DEFAULT 3,
     lender_type      TEXT DEFAULT '',
+    source           TEXT DEFAULT '',
     verified_at      TIMESTAMPTZ DEFAULT NOW()
 );
 

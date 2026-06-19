@@ -100,6 +100,12 @@ GARBAGE_PATTERNS = [
     r"everything you need to know", r"game.changer", r"outsourcing",
 ]
 
+# Domains that are not trusted company websites (blogs, hosted pages)
+BLOB_DOMAINS = [
+    "blogspot.com", "medium.com", "wordpress.com", "tumblr.com",
+    "weebly.com", "wixsite.com", "webnode.com", "github.io", "netlify.app",
+]
+
 def _is_real_company(name: str) -> bool:
     n = name.lower().strip()
     for pattern in GARBAGE_PATTERNS:
@@ -246,12 +252,13 @@ def _serpapi_company(company_name: str, website: str = "") -> str:
 
             if accept:
                 _log(f"  SerpApi company found: {candidate} | {debug}")
-                # attach debug to the returned value via a tuple-style string
-                return candidate + "|" + debug
+                ph_flag = "PH" if country_boost > 0 else "NONPH"
+                return candidate + "|" + debug + "|" + ph_flag
 
         if best_link:
             _log(f"  SerpApi company best candidate: {best_link} | {best_debug}")
-            return best_link + "|" + best_debug
+            ph_flag = "PH" if "country=50" in best_debug or "philippin" in best_debug.lower() else "NONPH"
+            return best_link + "|" + best_debug + "|" + ph_flag
 
     except Exception as e:
         _log(f"  SerpApi company search error: {e}")
@@ -393,6 +400,7 @@ def verify_batch(batch_df: pd.DataFrame, progress_bar=None) -> list:
             "member_details":   str(row.get("Member Details", "None found") or ""),
             "fit_score":        int(row.get("Fit Score", 3) or 3),
             "lender_type":      str(row.get("Type", "") or ""),
+            "source":           str(row.get("Source", "") or ""),
         })
     return records
 
@@ -422,13 +430,16 @@ def verify_linkedin(lenders_df: pd.DataFrame, progress_bar=None) -> pd.DataFrame
 
         # ── Step 1: existing stored value ──────────────────────────────────
         company_li = str(row.get("linkedin_company", "") or "").strip()
+        source = ""
         if company_li:
+            source = "stored"
             _log(f"  Using stored LinkedIn: {company_li}")
 
         # ── Step 2: known hardcoded map (instant, no API call) ─────────────
         if not company_li:
             company_li = _lookup_known(company_name)
             if company_li:
+                source = "known_map"
                 _log(f"  Found in known map: {company_li}")
 
         # ── Step 3: SerpApi Google search (uses API credits) ───────────────
@@ -438,10 +449,25 @@ def verify_linkedin(lenders_df: pd.DataFrame, progress_bar=None) -> pd.DataFrame
             company_li = _serpapi_company(company_name, website)
             time.sleep(1)
 
-        # company_li may include a trailing debug string separated by '|'
+        # company_li may include trailing debug and PH flag separated by '|'
+        ph_flag = ""
         if company_li:
-            if "|" in company_li and company_li.startswith("http"):
-                company_li = company_li.split("|", 1)[0]
+            parts = company_li.split("|")
+            if parts:
+                if parts[0].startswith("http"):
+                    company_li = parts[0]
+            if len(parts) >= 3:
+                ph_flag = parts[2]
+        # If SerpApi returned a non-PH result, discard it (we only want PH companies)
+        if ph_flag and ph_flag != "PH":
+            _log(f"  SerpApi candidate not Philippines ({ph_flag}) — ignoring")
+            company_li = ""
+            if not source:
+                source = "serpapi_nonph"
+
+        if not source:
+            source = "serpapi" if company_li else ""
+
         has_linkedin = "Yes" if company_li else "No"
         _log(f"  LinkedIn: {has_linkedin} | {company_li}")
 
@@ -476,15 +502,27 @@ def verify_linkedin(lenders_df: pd.DataFrame, progress_bar=None) -> pd.DataFrame
 
         members_str = " | ".join(member_parts) if member_parts else "None found"
 
+        # Filter out untrusted/hosted websites
+        website_val = str(row.get("website", "") or "")
+        try:
+            from urllib.parse import urlparse
+            dom = urlparse(website_val).netloc.lower().lstrip("www.")
+        except Exception:
+            dom = ""
+        if any(b in dom for b in BLOB_DOMAINS):
+            _log(f"  Website domain {dom} appears to be a hosted/blog site — clearing")
+            website_val = ""
+
         results.append({
             "Lender Name":      company_name,
-            "Website":          str(row.get("website", "") or ""),
+            "Website":          website_val,
             "Has LinkedIn":     has_linkedin,
             "LinkedIn Company": company_li,
             "Members Found":    len(employees),
             "Member Details":   members_str,
             "Fit Score":        row.get("fit_score", 3),
             "Type":             row.get("lender_type", ""),
+            "Source":           source,
         })
 
         # Polite delay between companies to preserve SerpApi credits
