@@ -418,17 +418,39 @@ def scrape_bsp(progress_bar=None):
 
     # BSP occasionally blocks automated requests. Use targeted web results
     # as a real fallback, rather than silently returning the seed database.
-    if not records:
+    # Supplement incomplete official responses; BSP often returns only one
+    # of its directory tables to automated clients.
+    if len(records) < 150:
+        existing_names = {r["legal_name"].lower() for r in records}
         for query in [
             'site:bsp.gov.ph Philippines bank directory',
             'site:bsp.gov.ph lending financing companies directory Philippines',
+            'site:bsp.gov.ph rural banks Philippines directory',
+            'site:bsp.gov.ph thrift banks Philippines directory',
+            'site:bsp.gov.ph quasi banks Philippines list',
+            'BSP licensed financing companies Philippines',
+            'BSP supervised banks Philippines list',
+            'BSP registered lending companies Philippines',
+            'Philippines BSP bank directory 2025',
+            'Philippines BSP financing company list',
+            'Philippines BSP rural bank list',
+            'Philippines BSP universal commercial banks list',
+            'Philippines BSP digital banks list',
+            'Philippines BSP non-bank financial institutions',
         ]:
+            if len(records) >= 150:
+                break
             for item in _ddg_search(query, max_results=10):
                 title = item["title"]
+                if title.lower() in existing_names:
+                    continue
                 rec = _empty_record(title, f"BSP Web Fallback — {query}")
                 rec["website"] = item["url"]
                 rec["notes"] = item["snippet"]
                 records.append(rec)
+                existing_names.add(title.lower())
+                if len(records) >= 150:
+                    break
 
     if progress_bar:
         progress_bar.progress(95, text="BSP: Finalising...")
@@ -526,17 +548,38 @@ def scrape_sec(progress_bar=None):
     except Exception as e:
         _log(f"SEC live scrape note: {e}")
 
-    if not records:
+    # Supplement a partial SEC response with targeted live search results.
+    if len(records) < 150:
+        existing_names = {r["legal_name"].lower() for r in records}
         for query in [
             'site:sec.gov.ph registered lending companies Philippines',
             'site:sec.gov.ph financing companies Philippines registry',
+            'site:sec.gov.ph lending company registration Philippines',
+            'site:sec.gov.ph financing company registration Philippines',
+            'SEC registered lending companies Philippines list',
+            'SEC registered financing companies Philippines list',
+            'SEC lending companies directory Philippines',
+            'SEC financing companies directory Philippines',
+            'Philippines SEC lending company registration list',
+            'Philippines SEC financing company list 2025',
+            'registered online lending companies SEC Philippines',
+            'registered financing companies SEC Philippines',
+            'SEC certificate lending company Philippines',
+            'SEC list of lending companies Philippines PDF',
         ]:
+            if len(records) >= 150:
+                break
             for item in _ddg_search(query, max_results=10):
                 title = item["title"]
+                if title.lower() in existing_names:
+                    continue
                 rec = _empty_record(title, f"SEC Web Fallback — {query}")
                 rec["website"] = item["url"]
                 rec["notes"] = item["snippet"]
                 records.append(rec)
+                existing_names.add(title.lower())
+                if len(records) >= 150:
+                    break
 
     df = pd.DataFrame(records).drop_duplicates(subset=["legal_name"])
     _log(f"SEC: {len(df)} lenders collected")

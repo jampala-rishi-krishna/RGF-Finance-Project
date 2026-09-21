@@ -494,7 +494,8 @@ elif st.session_state.page == "Run Research":
             if df is not None and not df.empty:
                 saved, dupes = save_lenders(df)
                 pb.progress(100, text="Done.")
-                st.session_state["research_flash"] = ("success", f"BSP scrape complete — {len(df)} records collected; {saved} new lenders saved; {dupes} duplicates skipped.")
+                status = "Target reached." if len(df) >= 150 and saved >= 50 else "Target not reached; available results were exhausted."
+                st.session_state["research_flash"] = ("success", f"BSP scrape complete — {len(df)} records collected; {saved} new lenders saved; {dupes} duplicates skipped. {status}")
                 st.rerun()
             else:
                 st.markdown('<div class="alert-warn">No results from BSP. Try again later.</div>', unsafe_allow_html=True)
@@ -509,7 +510,8 @@ elif st.session_state.page == "Run Research":
             if df is not None and not df.empty:
                 saved, dupes = save_lenders(df)
                 pb.progress(100, text="Done.")
-                st.session_state["research_flash"] = ("success", f"SEC scrape complete — {len(df)} records collected; {saved} new lenders saved; {dupes} duplicates skipped.")
+                status = "Target reached." if len(df) >= 150 and saved >= 50 else "Target not reached; available results were exhausted."
+                st.session_state["research_flash"] = ("success", f"SEC scrape complete — {len(df)} records collected; {saved} new lenders saved; {dupes} duplicates skipped. {status}")
                 st.rerun()
             else:
                 st.markdown('<div class="alert-warn">No results from SEC. Try again later.</div>', unsafe_allow_html=True)
