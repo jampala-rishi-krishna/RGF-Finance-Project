@@ -390,7 +390,10 @@ def scrape_bsp(progress_bar=None):
     ]
     for url, label in bsp_urls:
         try:
-            r = requests.get(url, headers=HEADERS, timeout=20)
+            # Keep the UI responsive when BSP is unavailable/slow.  The
+            # bundled directory is still returned if either live endpoint
+            # cannot be reached.
+            r = requests.get(url, headers=HEADERS, timeout=8)
             soup = BeautifulSoup(r.text, "html.parser")
             for table in soup.find_all("table"):
                 for row in table.find_all("tr")[1:]:
@@ -487,7 +490,7 @@ def scrape_sec(progress_bar=None):
 
     # Try live SEC scrape
     try:
-        r = requests.get("https://www.sec.gov.ph/registered-lending-companies/", headers=HEADERS, timeout=15)
+        r = requests.get("https://www.sec.gov.ph/registered-lending-companies/", headers=HEADERS, timeout=8)
         soup = BeautifulSoup(r.text, "html.parser")
         for row in soup.find_all("tr")[1:]:
             cols = row.find_all("td")

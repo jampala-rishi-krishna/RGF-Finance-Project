@@ -486,6 +486,12 @@ elif st.session_state.page == "Run Research":
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
+    # Keep the result visible after the database refresh rerun.
+    research_flash = st.session_state.pop("research_flash", None)
+    if research_flash:
+        kind, message = research_flash
+        st.markdown(f'<div class="alert-{kind}">{message}</div>', unsafe_allow_html=True)
+
     if run_bsp:
         pb = st.progress(0, text="Scraping BSP Directory...")
         try:
@@ -493,7 +499,7 @@ elif st.session_state.page == "Run Research":
             if df is not None and not df.empty:
                 saved, dupes = save_lenders(df)
                 pb.progress(100, text="Done.")
-                st.markdown(f'<div class="alert-success">BSP scrape complete — {saved} new lenders saved. {dupes} duplicates skipped.</div>', unsafe_allow_html=True)
+                st.session_state["research_flash"] = ("success", f"BSP scrape complete — {len(df)} records collected; {saved} new lenders saved; {dupes} duplicates skipped.")
                 st.rerun()
             else:
                 st.markdown('<div class="alert-warn">No results from BSP. Try again later.</div>', unsafe_allow_html=True)
@@ -507,7 +513,7 @@ elif st.session_state.page == "Run Research":
             if df is not None and not df.empty:
                 saved, dupes = save_lenders(df)
                 pb.progress(100, text="Done.")
-                st.markdown(f'<div class="alert-success">SEC scrape complete — {saved} new lenders saved. {dupes} duplicates skipped.</div>', unsafe_allow_html=True)
+                st.session_state["research_flash"] = ("success", f"SEC scrape complete — {len(df)} records collected; {saved} new lenders saved; {dupes} duplicates skipped.")
                 st.rerun()
             else:
                 st.markdown('<div class="alert-warn">No results from SEC. Try again later.</div>', unsafe_allow_html=True)
@@ -521,7 +527,7 @@ elif st.session_state.page == "Run Research":
             if df is not None and not df.empty:
                 saved, dupes = save_lenders(df)
                 pb.progress(100, text="Done.")
-                st.markdown(f'<div class="alert-success">Google search complete — {saved} new lenders saved. {dupes} duplicates skipped.</div>', unsafe_allow_html=True)
+                st.session_state["research_flash"] = ("success", f"Google search complete — {len(df)} records collected; {saved} new lenders saved; {dupes} duplicates skipped.")
                 st.rerun()
             else:
                 st.markdown('<div class="alert-warn">No results from Google search.</div>', unsafe_allow_html=True)
@@ -603,4 +609,3 @@ elif st.session_state.page == "Add Manual Entry":
                     st.markdown('<div class="alert-warn">Lender already exists in the database.</div>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
-
