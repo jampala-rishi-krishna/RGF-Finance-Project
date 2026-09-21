@@ -362,6 +362,11 @@ def scrape_bsp(progress_bar=None):
         ("British International Investment Philippines", "", "Capital Partner", 5, ["working_capital"]),
     ]
 
+    # These are legacy seed records, not a scrape. Do not report them as
+    # freshly collected data; live BSP data and the real search fallback
+    # below are the source of truth for this action.
+    known_lenders = []
+
     if progress_bar:
         progress_bar.progress(10, text="BSP: Loading known lenders database...")
 
@@ -410,6 +415,20 @@ def scrape_bsp(progress_bar=None):
                     records.append(rec)
         except Exception as e:
             _log(f"BSP live scrape failed for {url}: {e}")
+
+    # BSP occasionally blocks automated requests. Use targeted web results
+    # as a real fallback, rather than silently returning the seed database.
+    if not records:
+        for query in [
+            'site:bsp.gov.ph Philippines bank directory',
+            'site:bsp.gov.ph lending financing companies directory Philippines',
+        ]:
+            for item in _ddg_search(query, max_results=10):
+                title = item["title"]
+                rec = _empty_record(title, f"BSP Web Fallback — {query}")
+                rec["website"] = item["url"]
+                rec["notes"] = item["snippet"]
+                records.append(rec)
 
     if progress_bar:
         progress_bar.progress(95, text="BSP: Finalising...")
@@ -477,6 +496,11 @@ def scrape_sec(progress_bar=None):
         "Omega Finance Corporation Philippines",
     ]
 
+    # The old list contained guessed/generic company names and made this
+    # action appear to finish instantly. SEC results must come from the
+    # official registry or the live fallback below.
+    sec_companies = []
+
     total = len(sec_companies)
     for idx, name in enumerate(sec_companies):
         pct = 10 + int((idx / total) * 80)
@@ -501,6 +525,18 @@ def scrape_sec(progress_bar=None):
                     records.append(rec)
     except Exception as e:
         _log(f"SEC live scrape note: {e}")
+
+    if not records:
+        for query in [
+            'site:sec.gov.ph registered lending companies Philippines',
+            'site:sec.gov.ph financing companies Philippines registry',
+        ]:
+            for item in _ddg_search(query, max_results=10):
+                title = item["title"]
+                rec = _empty_record(title, f"SEC Web Fallback — {query}")
+                rec["website"] = item["url"]
+                rec["notes"] = item["snippet"]
+                records.append(rec)
 
     df = pd.DataFrame(records).drop_duplicates(subset=["legal_name"])
     _log(f"SEC: {len(df)} lenders collected")
