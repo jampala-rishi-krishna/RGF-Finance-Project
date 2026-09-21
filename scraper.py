@@ -12,6 +12,10 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.5",
 }
 
+# A hosted deployment may block DuckDuckGo. Once that is detected, do not
+# spend several minutes retrying the same unavailable service.
+_DDG_AVAILABLE = True
+
 # ── 50+ search queries covering every angle ───────────────────────────────
 SEARCH_QUERIES = [
     # Invoice / Receivables Finance
@@ -206,10 +210,13 @@ def _enrich_website(url):
 
 def _ddg_search(query, max_results=10):
     """Search DuckDuckGo HTML and return list of {title, url, snippet}."""
+    global _DDG_AVAILABLE
+    if not _DDG_AVAILABLE:
+        return []
     results = []
     try:
         url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
-        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp = requests.get(url, headers=HEADERS, timeout=5)
         soup = BeautifulSoup(resp.text, "html.parser")
 
         for result in soup.find_all("a", class_="result__a")[:max_results]:
@@ -235,7 +242,8 @@ def _ddg_search(query, max_results=10):
             results.append({"title": title, "url": href, "snippet": snippet})
 
     except Exception as e:
-        _log(f"  DDG error: {e}")
+        _DDG_AVAILABLE = False
+        _log(f"  DDG unavailable; skipping web fallback: {e}")
 
     return results
 
