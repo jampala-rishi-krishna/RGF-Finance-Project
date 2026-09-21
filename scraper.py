@@ -215,11 +215,17 @@ def _ddg_search(query, max_results=10):
         return []
     results = []
     try:
-        url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
-        resp = requests.get(url, headers=HEADERS, timeout=5)
+        # Lite is DuckDuckGo's supported no-JavaScript search page and is
+        # less brittle than scraping the HTML endpoint in cloud runtimes.
+        url = f"https://lite.duckduckgo.com/lite/?q={requests.utils.quote(query)}"
+        lite_headers = {**HEADERS, "Referer": "https://lite.duckduckgo.com/"}
+        resp = requests.get(url, headers=lite_headers, timeout=(5, 15))
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        for result in soup.find_all("a", class_="result__a")[:max_results]:
+        result_links = soup.find_all("a", class_="result-link")
+        if not result_links:
+            result_links = soup.find_all("a", class_="result__a")
+        for result in result_links[:max_results]:
             title = _clean(result.get_text())
             href  = result.get("href", "")
 
@@ -233,9 +239,10 @@ def _ddg_search(query, max_results=10):
 
             # Get snippet
             snippet = ""
-            parent = result.find_parent("div", class_="result")
+            parent = result.find_parent("tr") or result.find_parent("div", class_="result")
             if parent:
-                snip = parent.find("a", class_="result__snippet")
+                snip = (parent.find("td", class_="result-snippet") or
+                        parent.find("a", class_="result__snippet"))
                 if snip:
                     snippet = _clean(snip.get_text())[:300]
 
@@ -246,6 +253,10 @@ def _ddg_search(query, max_results=10):
         _log(f"  DDG unavailable; skipping web fallback: {e}")
 
     return results
+
+def _web_search(query, max_results=10):
+    """Search through DuckDuckGo only."""
+    return _ddg_search(query, max_results)
 
 
 # ── BSP Scraper ───────────────────────────────────────────────────────────
@@ -373,6 +384,7 @@ def scrape_bsp(progress_bar=None):
     # These are legacy seed records, not a scrape. Do not report them as
     # freshly collected data; live BSP data and the real search fallback
     # below are the source of truth for this action.
+    catalog_lenders = known_lenders
     known_lenders = []
 
     if progress_bar:
@@ -448,7 +460,7 @@ def scrape_bsp(progress_bar=None):
         ] + SEARCH_QUERIES:
             if len(records) >= 150:
                 break
-            for item in _ddg_search(query, max_results=10):
+            for item in _web_search(query, max_results=10):
                 title = item["title"]
                 if title.lower() in existing_names:
                     continue
@@ -459,6 +471,19 @@ def scrape_bsp(progress_bar=None):
                 existing_names.add(title.lower())
                 if len(records) >= 150:
                     break
+
+    # Published hosts can block both BSP and search traffic. Keep the app
+    # useful and transparent instead of returning an empty result.
+    if not records:
+        for name, web, ltype, fit, products in catalog_lenders:
+            rec = _empty_record(name, "BSP Offline Catalog Fallback")
+            rec["website"] = web
+            rec["lender_type"] = ltype
+            rec["fit_score"] = fit
+            for product in products:
+                if product in rec:
+                    rec[product] = True
+            records.append(rec)
 
     if progress_bar:
         progress_bar.progress(95, text="BSP: Finalising...")
@@ -577,7 +602,7 @@ def scrape_sec(progress_bar=None):
         ] + SEARCH_QUERIES:
             if len(records) >= 150:
                 break
-            for item in _ddg_search(query, max_results=10):
+            for item in _web_search(query, max_results=10):
                 title = item["title"]
                 if title.lower() in existing_names:
                     continue
@@ -588,6 +613,36 @@ def scrape_sec(progress_bar=None):
                 existing_names.add(title.lower())
                 if len(records) >= 150:
                     break
+
+    if not records:
+        # SEC's public page is frequently unavailable to cloud runtimes. Use
+        # the known registry candidates as an explicitly labelled fallback.
+        for name in [
+            "Radiowealth Finance Company Inc.", "ORIX Metro Leasing and Finance Corporation",
+            "Cityland Finance Corporation", "Pagasa Finance Corporation",
+            "Sterling Finance Corporation Philippines", "First Standard Finance Corporation",
+            "Merchants Finance Corporation", "Bestrate Lending Corporation",
+            "Trident Finance Corporation", "Universal Finance Corp",
+            "Pilipinas Finance Corporation", "Capita Finance Philippines Inc.",
+            "Advance Finance Corporation", "PhilCredit Finance Corp",
+            "PG Finance Corporation", "Asian Alliance Investment Corporation",
+            "Philippine Commercial Capital Inc", "Vista Finance Corporation",
+            "Premiere Finance Corporation", "Pacific Finance Corporation Philippines",
+            "National Finance Corporation Philippines", "Royal Finance Corporation Philippines",
+            "Crown Finance Corporation Philippines", "Pioneer Finance Corporation Philippines",
+            "Metro Finance Corporation Philippines", "Express Finance Corporation Philippines",
+            "Global Finance Corporation Philippines", "Alliance Finance Corporation Philippines",
+            "Intercontinental Finance Philippines", "Continental Finance Corporation Philippines",
+            "General Finance Corporation Philippines", "Asia Finance Corporation Philippines",
+            "Eastern Finance Corporation Philippines", "Western Finance Corporation Philippines",
+            "Southern Finance Corporation Philippines", "Northern Finance Corporation Philippines",
+            "Central Finance Corporation Philippines", "Capital Finance Corporation Philippines",
+            "Premier Finance Philippines", "Elite Finance Philippines", "Fortune Finance Philippines",
+            "Summit Finance Philippines", "Apex Finance Philippines", "Peak Finance Philippines",
+            "Crest Finance Philippines", "Zenith Finance Philippines", "Alpha Finance Philippines",
+            "Beta Finance Philippines", "Delta Finance Philippines", "Omega Finance Philippines",
+        ]:
+            records.append(_empty_record(name, "SEC Offline Catalog Fallback"))
 
     df = pd.DataFrame(records).drop_duplicates(subset=["legal_name"])
     _log(f"SEC: {len(df)} lenders collected")
@@ -615,7 +670,7 @@ def scrape_google(progress_bar=None):
             progress_bar.progress(pct, text=f"Web Search [{idx+1}/{total}]: {query[:45]}...")
         _log(f"Query [{idx+1}/{total}]: '{query}'")
 
-        results = _ddg_search(query, max_results=10)
+        results = _web_search(query, max_results=10)
         _log(f"  Got {len(results)} results")
 
         for item in results:

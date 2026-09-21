@@ -197,17 +197,17 @@ st.markdown(
 )
 _n1, _n2, _n3, _ngap, _nuser, _nso = st.columns([1.6, 1.2, 1.6, 3.2, 1.8, 0.9])
 with _n1:
-    if st.button("Lender Database", key="nav_db", use_container_width=True,
+    if st.button("Lender Database", key="nav_db", width="stretch",
                  type="primary" if page == "Lender Database" else "secondary"):
         st.session_state.page = "Lender Database"
         st.rerun()
 with _n2:
-    if st.button("Run Research", key="nav_rs", use_container_width=True,
+    if st.button("Run Research", key="nav_rs", width="stretch",
                  type="primary" if page == "Run Research" else "secondary"):
         st.session_state.page = "Run Research"
         st.rerun()
 with _n3:
-    if st.button("Add Manual Entry", key="nav_am", use_container_width=True,
+    if st.button("Add Manual Entry", key="nav_am", width="stretch",
                  type="primary" if page == "Add Manual Entry" else "secondary"):
         st.session_state.page = "Add Manual Entry"
         st.rerun()
@@ -217,7 +217,7 @@ with _nuser:
         unsafe_allow_html=True
     )
 with _nso:
-    if st.button("Sign Out", key="nav_signout", use_container_width=True, type="secondary"):
+    if st.button("Sign Out", key="nav_signout", width="stretch", type="secondary"):
         logout()
         st.rerun()
 
@@ -264,7 +264,7 @@ if st.session_state.page == "Lender Database":
         type_filter = st.selectbox("Lender Type", ["All", "Direct Lender", "Broker", "Marketplace", "Capital Partner"])
     with fc4:
         st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        if st.button("RESET", use_container_width=True):
+        if st.button("RESET", width="stretch"):
             st.rerun()
 
     display_df = all_df.copy() if not all_df.empty else pd.DataFrame()
@@ -303,7 +303,7 @@ if st.session_state.page == "Lender Database":
         st.markdown(f'<div class="table-count">{len(show_df)} lenders</div>', unsafe_allow_html=True)
         st.dataframe(
             show_df,
-            use_container_width=True,
+            width="stretch",
             height=460,
             hide_index=True,
             column_config={
@@ -360,7 +360,7 @@ if st.session_state.page == "Lender Database":
         with col_li1:
             verify_btn = st.button(
                 "VERIFY NEXT 50",
-                use_container_width=True,
+                width="stretch",
                 key="verify_linkedin_btn",
                 disabled=next_batch_df.empty,
             )
@@ -466,7 +466,7 @@ elif st.session_state.page == "Run Research":
             <div class="source-title">BSP DIRECTORY</div>
             <div class="source-desc">Bank of the Philippines Islands licensed banks, quasi-banks, and financing companies. Most reliable source.</div>
         </div>""", unsafe_allow_html=True)
-        run_bsp = st.button("RUN BSP SCRAPE", use_container_width=True, key="bsp")
+        run_bsp = st.button("RUN BSP SCRAPE", width="stretch", key="bsp")
 
     with src2:
         st.markdown("""
@@ -474,7 +474,7 @@ elif st.session_state.page == "Run Research":
             <div class="source-title">SEC REGISTRY</div>
             <div class="source-desc">Securities and Exchange Commission registered lending and financing companies in the Philippines.</div>
         </div>""", unsafe_allow_html=True)
-        run_sec = st.button("RUN SEC SCRAPE", use_container_width=True, key="sec")
+        run_sec = st.button("RUN SEC SCRAPE", width="stretch", key="sec")
 
     with src3:
         st.markdown("""
@@ -482,7 +482,7 @@ elif st.session_state.page == "Run Research":
             <div class="source-title">GOOGLE SEARCH</div>
             <div class="source-desc">Search Google for trade finance, invoice finance, and inventory finance providers in Philippines.</div>
         </div>""", unsafe_allow_html=True)
-        run_google = st.button("RUN GOOGLE SEARCH", use_container_width=True, key="google")
+        run_google = st.button("RUN GOOGLE SEARCH", width="stretch", key="google")
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
@@ -587,7 +587,7 @@ elif st.session_state.page == "Add Manual Entry":
 
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-        if st.button("SAVE LENDER", use_container_width=False, key="save_manual"):
+        if st.button("SAVE LENDER", width="content", key="save_manual"):
             if not m_legal:
                 st.markdown('<div class="alert-error">Legal Name is required.</div>', unsafe_allow_html=True)
             else:
