@@ -437,7 +437,7 @@ def scrape_bsp(progress_bar=None):
             'Philippines BSP universal commercial banks list',
             'Philippines BSP digital banks list',
             'Philippines BSP non-bank financial institutions',
-        ]:
+        ] + SEARCH_QUERIES:
             if len(records) >= 150:
                 break
             for item in _ddg_search(query, max_results=10):
@@ -566,7 +566,7 @@ def scrape_sec(progress_bar=None):
             'registered financing companies SEC Philippines',
             'SEC certificate lending company Philippines',
             'SEC list of lending companies Philippines PDF',
-        ]:
+        ] + SEARCH_QUERIES:
             if len(records) >= 150:
                 break
             for item in _ddg_search(query, max_results=10):
