@@ -486,13 +486,8 @@ elif st.session_state.page == "Run Research":
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    # Keep the result visible after the database refresh rerun.
-    research_flash = st.session_state.pop("research_flash", None)
-    if research_flash:
-        kind, message = research_flash
-        st.markdown(f'<div class="alert-{kind}">{message}</div>', unsafe_allow_html=True)
-
     if run_bsp:
+        st.session_state.pop("research_flash", None)
         pb = st.progress(0, text="Scraping BSP Directory...")
         try:
             df = scrape_lenders("bsp", pb)
@@ -507,6 +502,7 @@ elif st.session_state.page == "Run Research":
             st.markdown(f'<div class="alert-error">BSP scrape failed: {e}</div>', unsafe_allow_html=True)
 
     if run_sec:
+        st.session_state.pop("research_flash", None)
         pb = st.progress(0, text="Scraping SEC Registry...")
         try:
             df = scrape_lenders("sec", pb)
@@ -521,6 +517,7 @@ elif st.session_state.page == "Run Research":
             st.markdown(f'<div class="alert-error">SEC scrape failed: {e}</div>', unsafe_allow_html=True)
 
     if run_google:
+        st.session_state.pop("research_flash", None)
         pb = st.progress(0, text="Running Google searches...")
         try:
             df = scrape_lenders("google", pb)
@@ -533,6 +530,13 @@ elif st.session_state.page == "Run Research":
                 st.markdown('<div class="alert-warn">No results from Google search.</div>', unsafe_allow_html=True)
         except Exception as e:
             st.markdown(f'<div class="alert-error">Google search failed: {e}</div>', unsafe_allow_html=True)
+
+    # Render the saved result after the action handlers. This prevents a
+    # previous BSP/SEC message from appearing while the next source runs.
+    research_flash = st.session_state.pop("research_flash", None)
+    if research_flash:
+        kind, message = research_flash
+        st.markdown(f'<div class="alert-{kind}">{message}</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════
 # PAGE: ADD MANUAL ENTRY
